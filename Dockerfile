@@ -10,6 +10,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 RUN npm run build
+RUN mkdir -p /app/public
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -21,11 +22,8 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-
-# Copy public folder if it exists and has content
-RUN mkdir -p ./public
-COPY --from=builder /app/public ./public 2>/dev/null || true
 
 USER nextjs
 EXPOSE 3000
