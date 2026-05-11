@@ -1,0 +1,121 @@
+name: Main Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: cv-analyzer
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AZURE_CONTAINER_APP_NAME: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
+  AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+  AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+  NODE_ENV: production
+
+jobs:
+  checkout-code:
+    name: Checkout Code
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.metadata.outputs.image-tag }}
+      image-uri: ${{ steps.metadata.outputs.image-uri }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Prepare image metadata
+        id: metadata
+        run: |
+          echo "image-tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image-uri=${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+  authentication:
+    name: Authentication
+    runs-on: ubuntu-latest
+    needs: checkout-code
+    steps:
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Authenticate Docker to Azure Container Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+  build-and-push-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs:
+      - checkout-code
+      - authentication
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Authenticate Docker to Azure Container Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag "${{ needs.checkout-code.outputs.image-uri }}" \
+            --tag "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:main" \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push "${{ needs.checkout-code.outputs.image-uri }}"
+          docker push "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:main"
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs:
+      - checkout-code
+      - build-and-push-image
+    environment: production
+    steps:
+      - name: Authenticate to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy latest image to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ env.AZURE_CONTAINER_APP_NAME }}
+          imageToDeploy: ${{ needs.checkout-code.outputs.image-uri }}
+
+      - name: Update application environment variables
+        run: |
+          az containerapp update \
+            --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --set-env-vars \
+              AZURE_STORAGE_CONNECTION_STRING="${{ env.AZURE_STORAGE_CONNECTION_STRING }}" \
+              AZURE_STORAGE_CONTAINER_NAME="${{ env.AZURE_STORAGE_CONTAINER_NAME }}" \
+              DATABASE_URL="${{ env.DATABASE_URL }}" \
+              NEXT_PUBLIC_APP_URL="${{ env.NEXT_PUBLIC_APP_URL }}" \
+              NODE_ENV="${{ env.NODE_ENV }}"
+
+      - name: Verify deployment
+        run: |
+          az containerapp show \
+            --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv
