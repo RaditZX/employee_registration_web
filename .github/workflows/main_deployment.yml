@@ -6,17 +6,6 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  IMAGE_NAME: cv-analyzer
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
-  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-  AZURE_CONTAINER_APP_NAME: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
-  AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
-  AZURE_STORAGE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-  NODE_ENV: production
-
 jobs:
   checkout-code:
     name: Checkout Code
@@ -32,7 +21,7 @@ jobs:
         id: metadata
         run: |
           echo "image-tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "image-uri=${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "image-uri=${{ secrets.ACR_LOGIN_SERVER }}/cv-analyzer:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
   authentication:
     name: Authentication
@@ -64,21 +53,21 @@ jobs:
       - name: Authenticate Docker to Azure Container Registry
         uses: azure/docker-login@v2
         with:
-          login-server: ${{ env.ACR_LOGIN_SERVER }}
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Build Docker image
         run: |
           docker build \
-            --tag "${{ needs.checkout-code.outputs.image-uri }}" \
-            --tag "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:main" \
+            --tag "${{ secrets.ACR_LOGIN_SERVER }}/cv-analyzer:${{ github.sha }}" \
+            --tag "${{ secrets.ACR_LOGIN_SERVER }}/cv-analyzer:main" \
             .
 
       - name: Push Docker image
         run: |
-          docker push "${{ needs.checkout-code.outputs.image-uri }}"
-          docker push "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:main"
+          docker push "${{ secrets.ACR_LOGIN_SERVER }}/cv-analyzer:${{ github.sha }}"
+          docker push "${{ secrets.ACR_LOGIN_SERVER }}/cv-analyzer:main"
 
   deploy:
     name: Deploy
@@ -96,26 +85,26 @@ jobs:
       - name: Deploy latest image to Azure Container Apps
         uses: azure/container-apps-deploy-action@v2
         with:
-          resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
-          containerAppName: ${{ env.AZURE_CONTAINER_APP_NAME }}
+          resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
           imageToDeploy: ${{ needs.checkout-code.outputs.image-uri }}
 
       - name: Update application environment variables
         run: |
           az containerapp update \
-            --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
-            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --set-env-vars \
-              AZURE_STORAGE_CONNECTION_STRING="${{ env.AZURE_STORAGE_CONNECTION_STRING }}" \
-              AZURE_STORAGE_CONTAINER_NAME="${{ env.AZURE_STORAGE_CONTAINER_NAME }}" \
-              DATABASE_URL="${{ env.DATABASE_URL }}" \
-              NEXT_PUBLIC_APP_URL="${{ env.NEXT_PUBLIC_APP_URL }}" \
-              NODE_ENV="${{ env.NODE_ENV }}"
+              AZURE_STORAGE_CONNECTION_STRING="${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}" \
+              AZURE_STORAGE_CONTAINER_NAME="${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}" \
+              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+              NEXT_PUBLIC_APP_URL="${{ secrets.NEXT_PUBLIC_APP_URL }}" \
+              NODE_ENV="production"
 
       - name: Verify deployment
         run: |
           az containerapp show \
-            --name "${{ env.AZURE_CONTAINER_APP_NAME }}" \
-            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ secrets.AZURE_CONTAINER_APP_NAME }}" \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
             --query "properties.configuration.ingress.fqdn" \
             --output tsv
