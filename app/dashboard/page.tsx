@@ -28,7 +28,7 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">Portal Pendaftaran Pegawai</p>
               <h1 className="max-w-2xl text-[32px] font-semibold leading-10 tracking-[-0.02em] text-slate-950 sm:text-5xl sm:leading-tight">
-                Digital Onboarding
+                Digital Onboarding (CI/CD Result)
               </h1>
               <p className="max-w-xl text-lg leading-8 text-slate-700">
                 Welcome to our modernized recruitment and onboarding experience. Complete your registration securely, upload documents, and follow every step through a seamless paperless process.
@@ -51,13 +51,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="grid min-h-80 place-items-center rounded-lg bg-gradient-to-br from-primary-50 via-white to-surface-low p-8 text-center">
-              <div className="max-w-sm space-y-4">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500 text-2xl font-semibold text-white">HR</div>
-                <h2 className="text-2xl font-semibold tracking-[-0.01em] text-slate-950">Modern Corporate Office</h2>
-                <p className="text-sm leading-6 text-slate-700">A clean workspace for secure employee registration, document collection, and onboarding coordination.</p>
-              </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-1">
+            <div className="grid min-h-80 place-items-center rounded-lg bg-gradient-to-br from-primary-50 via-white to-surface-low p-1 text-center">
+              <img src="https://thumbs.dreamstime.com/b/modern-office-building-showcasing-contemporary-spaces-professional-use-326626743.jpg" alt="" />
             </div>
           </div>
         </section>
